@@ -15,17 +15,12 @@ metadata {
 	definition(name: "Z-Wave Switch Secure", namespace: "smartthings", author: "SmartThings", ocfDeviceType: "oic.d.switch", runLocally: true, minHubCoreVersion: '000.019.00012', executeCommandsLocally: false, genericHandler: "Z-Wave") {
 		capability "Switch"
 		capability "Refresh"
-		capability "Polling"
 		capability "Actuator"
+        capability "Polling"
 		capability "Sensor"
 		capability "Health Check"
 
-		fingerprint inClusters: "0x25,0x98", deviceJoinName: "Switch"
-		fingerprint deviceId: "0x10", inClusters: "0x98", deviceJoinName: "Switch"
-		fingerprint mfr: "0086", prod: "0003", model: "008B", deviceJoinName: "Aeon Switch" //Aeon Labs Nano Switch
-		fingerprint mfr: "0086", prod: "0103", model: "008B", deviceJoinName: "Aeon Switch" //Aeon Labs Nano Switch
-		fingerprint mfr: "027A", prod: "A000", model: "A001", deviceJoinName: "Zooz Switch" //Zooz ZEN26 Switch
-		fingerprint mfr: "0152", prod: "A003", model: "A002", deviceJoinName: "iTec Switch" //iTec Home Light Switch
+        fingerprint mfr: "0000", prod: "0004", model: "0002", deviceJoinName: "Etherdyne Switch"
 	}
 
 	simulator {
@@ -36,23 +31,28 @@ metadata {
 		reply "988100200100,delay 200,9881002502": "command: 9881, payload: 00250300"
 	}
 
-	tiles {
-		standardTile("switch", "device.switch", width: 2, height: 2, canChangeIcon: true) {
-			state "on", label: '${name}', action: "switch.off", icon: "st.switches.switch.on", backgroundColor: "#00a0dc"
-			state "off", label: '${name}', action: "switch.on", icon: "st.switches.switch.off", backgroundColor: "#ffffff"
-		}
-		standardTile("refresh", "device.switch", inactiveLabel: false, decoration: "flat") {
-			state "default", label: '', action: "refresh.refresh", icon: "st.secondary.refresh"
-		}
-
-		main "switch"
-		details(["switch", "refresh"])
+	tiles(scale: 2) {
+    	multiAttributeTile(name:"tile", type:"generic", width:6, height:4) {
+        	tileAttribute("device.switch", key: "PRIMARY_CONTROL") {
+				attributeState "on", label:'${name}', action:"switch.off", icon:"st.switches.switch.on", backgroundColor:"#00A0DC"
+				attributeState "off", label:'${name}', action:"switch.on", icon:"st.switches.switch.off", backgroundColor:"#ffffff"
+            }
+        	tileAttribute("device.data", key: "SECONDARY_CONTROL") {
+          		attributeState "val", label: 'Power Level: ${currentValue}\nVoltage: ${currentValue}', defaultState: true
+            }
+        }
+        valueTile("data", "device.data", width: 2, height: 2) {
+        	state "val", label:'${currentValue}', defaultState: true, backgroundColor: "#e86d13"
+        }
+		main "tile"
+		details(["tile", "data"])
 	}
 }
 
 def installed() {
 	// Device-Watch simply pings if no device events received for checkInterval duration of 32min = 2 * 15min + 2min lag time
 	sendEvent(name: "checkInterval", value: 2 * 15 * 60 + 2 * 60, displayed: false, data: [protocol: "zwave", hubHardwareId: device.hub.hardwareID, offlinePingable: "1"])
+    sendEvent(name: "data", value: 25)
 }
 
 def updated() {
@@ -68,6 +68,9 @@ def parse(description) {
 		if (cmd) {
 			result = zwaveEvent(cmd)
 			log.debug("'$description' parsed to $result")
+            if (result != null) {
+    			sendEvent(name: "data", value: result.value)
+            }
 		} else {
 			log.debug("Couldn't zwave.parse '$description'")
 		}

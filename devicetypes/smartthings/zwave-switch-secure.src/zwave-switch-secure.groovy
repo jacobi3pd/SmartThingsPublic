@@ -1,16 +1,3 @@
-/**
- *  Copyright 2015 SmartThings
- *
- *  Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
- *  in compliance with the License. You may obtain a copy of the License at:
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- *  Unless required by applicable law or agreed to in writing, software distributed under the License is distributed
- *  on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License
- *  for the specific language governing permissions and limitations under the License.
- *
- */
 metadata {
 	definition(name: "Z-Wave Switch Secure", namespace: "smartthings", author: "SmartThings", ocfDeviceType: "oic.d.switch", runLocally: true, minHubCoreVersion: '000.019.00012', executeCommandsLocally: false, genericHandler: "Z-Wave") {
 		capability "Switch"
@@ -19,33 +6,37 @@ metadata {
         capability "Polling"
 		capability "Sensor"
 		capability "Health Check"
+        
+        attribute "power", "number"
+        attribute "current", "number"
+        attribute "voltage", "number"
+        
+        command "configurationGet"
 
         fingerprint mfr: "0000", prod: "0004", model: "0002", deviceJoinName: "Etherdyne Switch"
-	}
-
-	simulator {
-		status "on": "command: 9881, payload: 002503FF"
-		status "off": "command: 9881, payload: 00250300"
-
-		reply "9881002001FF,delay 200,9881002502": "command: 9881, payload: 002503FF"
-		reply "988100200100,delay 200,9881002502": "command: 9881, payload: 00250300"
 	}
 
 	tiles(scale: 2) {
     	multiAttributeTile(name:"tile", type:"generic", width:6, height:4) {
         	tileAttribute("device.switch", key: "PRIMARY_CONTROL") {
-				attributeState "on", label:'${name}', action:"switch.off", icon:"st.switches.switch.on", backgroundColor:"#00A0DC"
+				attributeState "on", label:'${name}', action:"configurationGet", icon:"st.switches.switch.on", backgroundColor:"#00A0DC"
 				attributeState "off", label:'${name}', action:"switch.on", icon:"st.switches.switch.off", backgroundColor:"#ffffff"
             }
         	tileAttribute("device.data", key: "SECONDARY_CONTROL") {
-          		attributeState "val", label: 'Power Level: ${currentValue}\nVoltage: ${currentValue}', defaultState: true
+          		attributeState "val", label: 'Power: ${currentValue}\t\tVoltage: ${currentValue}\t\tCurrent: ${currentValue}', defaultState: true
             }
         }
-        valueTile("data", "device.data", width: 2, height: 2) {
-        	state "val", label:'${currentValue}', defaultState: true, backgroundColor: "#e86d13"
+        valueTile("powerTile", "device.power", width: 2, height: 2) {
+        	state "power", label:'Power:\n${currentValue}', defaultState: true
+        }
+        valueTile("currentTile", "device.current", width: 2, height: 2) {
+        	state "current", label:'Current:\n${currentValue}', defaultState: true
+        }
+        valueTile("voltageTile", "device.voltage", width: 2, height: 2) {
+        	state "val", label:'Voltage:\n${currentValue}', defaultState: true
         }
 		main "tile"
-		details(["tile", "data"])
+		details(["tile", "powerTile", "currentTile", "voltageTile"])
 	}
 }
 
@@ -68,9 +59,6 @@ def parse(description) {
 		if (cmd) {
 			result = zwaveEvent(cmd)
 			log.debug("'$description' parsed to $result")
-            if (result != null) {
-    			sendEvent(name: "data", value: result.value)
-            }
 		} else {
 			log.debug("Couldn't zwave.parse '$description'")
 		}
@@ -101,6 +89,21 @@ def zwaveEvent(physicalgraph.zwave.commands.securityv1.SecurityMessageEncapsulat
 	}
 }
 
+def zwaveEvent(physicalgraph.zwave.commands.configurationv1.ConfigurationReport cmd) {
+    log.debug "$cmd"
+	switch (cmd.parameterNumber) {
+    	case 1:
+        	return createEvent(name: "power", value: cmd.scaledConfigurationValue)
+        case 2:
+        	return createEvent(name: "current", value: cmd.scaledConfigurationValue)
+        case 3:
+        	return createEvent(name: "voltage", value: cmd.scaledConfigurationValue)
+        default:
+        	null
+        
+    }
+}
+
 def zwaveEvent(physicalgraph.zwave.Command cmd) {
 	log.debug "Unhandled: $cmd"
 	null
@@ -118,6 +121,14 @@ def off() {
 		zwave.basicV1.basicSet(value: 0x00),
 		zwave.basicV1.basicGet()
 	])
+}
+
+def configurationGet() {
+    commands([
+    	zwave.configurationV2.configurationGet(parameterNumber: 1),
+	    zwave.configurationV2.configurationGet(parameterNumber: 2),
+	    zwave.configurationV2.configurationGet(parameterNumber: 3)
+    ])
 }
 
 def ping() {

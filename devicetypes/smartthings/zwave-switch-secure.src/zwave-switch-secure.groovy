@@ -1,3 +1,4 @@
+import static java.util.Calendar.SECOND
 metadata {
 	definition(name: "Z-Wave Switch Secure", namespace: "smartthings", author: "SmartThings", ocfDeviceType: "oic.d.switch", runLocally: true, minHubCoreVersion: '000.019.00012', executeCommandsLocally: false, genericHandler: "Z-Wave") {
 		capability "Switch"
@@ -19,21 +20,18 @@ metadata {
 	tiles(scale: 2) {
     	multiAttributeTile(name:"tile", type:"generic", width:6, height:4) {
         	tileAttribute("device.switch", key: "PRIMARY_CONTROL") {
-				attributeState "on", label:'${name}', action:"configurationGet", icon:"st.switches.switch.on", backgroundColor:"#00A0DC"
+				attributeState "on", label:'${name}', action:"switch.off", icon:"st.switches.switch.on", backgroundColor:"#00A0DC"
 				attributeState "off", label:'${name}', action:"switch.on", icon:"st.switches.switch.off", backgroundColor:"#ffffff"
-            }
-        	tileAttribute("device.data", key: "SECONDARY_CONTROL") {
-          		attributeState "val", label: 'Power: ${currentValue}\t\tVoltage: ${currentValue}\t\tCurrent: ${currentValue}', defaultState: true
             }
         }
         valueTile("powerTile", "device.power", width: 2, height: 2) {
-        	state "power", label:'Power:\n${currentValue}', defaultState: true
+        	state "val", label:'Power:\n${currentValue} mW', defaultState: true
         }
         valueTile("currentTile", "device.current", width: 2, height: 2) {
-        	state "current", label:'Current:\n${currentValue}', defaultState: true
+        	state "val", label:'Current:\n${currentValue} mA', defaultState: true
         }
         valueTile("voltageTile", "device.voltage", width: 2, height: 2) {
-        	state "val", label:'Voltage:\n${currentValue}', defaultState: true
+        	state "val", label:'Voltage:\n${currentValue} mV', defaultState: true
         }
 		main "tile"
 		details(["tile", "powerTile", "currentTile", "voltageTile"])
@@ -43,7 +41,7 @@ metadata {
 def installed() {
 	// Device-Watch simply pings if no device events received for checkInterval duration of 32min = 2 * 15min + 2min lag time
 	sendEvent(name: "checkInterval", value: 2 * 15 * 60 + 2 * 60, displayed: false, data: [protocol: "zwave", hubHardwareId: device.hub.hardwareID, offlinePingable: "1"])
-    sendEvent(name: "data", value: 25)
+    runEvery1Minute(hubConfigurationGet)
 }
 
 def updated() {
@@ -90,7 +88,6 @@ def zwaveEvent(physicalgraph.zwave.commands.securityv1.SecurityMessageEncapsulat
 }
 
 def zwaveEvent(physicalgraph.zwave.commands.configurationv1.ConfigurationReport cmd) {
-    log.debug "$cmd"
 	switch (cmd.parameterNumber) {
     	case 1:
         	return createEvent(name: "power", value: cmd.scaledConfigurationValue)
@@ -99,6 +96,7 @@ def zwaveEvent(physicalgraph.zwave.commands.configurationv1.ConfigurationReport 
         case 3:
         	return createEvent(name: "voltage", value: cmd.scaledConfigurationValue)
         default:
+        	log.debug "Parameter Number: $cmd.parameterNumber"
         	null
     }
 }
@@ -124,10 +122,16 @@ def off() {
 
 def configurationGet() {
     commands([
-    	//zwave.configurationV2.configurationGet(parameterNumber: 1),
-	    //zwave.configurationV2.configurationGet(parameterNumber: 2),
+    	zwave.configurationV2.configurationGet(parameterNumber: 1),
+	    zwave.configurationV2.configurationGet(parameterNumber: 2),
 	    zwave.configurationV2.configurationGet(parameterNumber: 3)
     ])
+}
+
+def hubConfigurationGet() {
+	sendHubCommand(zwave.configurationV2.configurationGet(parameterNumber: 1).format())
+	sendHubCommand(zwave.configurationV2.configurationGet(parameterNumber: 2).format())
+	sendHubCommand(zwave.configurationV2.configurationGet(parameterNumber: 3).format())
 }
 
 def ping() {

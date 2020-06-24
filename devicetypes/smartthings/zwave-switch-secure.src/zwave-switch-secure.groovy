@@ -100,7 +100,6 @@ def zwaveEvent(physicalgraph.zwave.commands.configurationv1.ConfigurationReport 
         	return createEvent(name: "voltage", value: cmd.scaledConfigurationValue)
         default:
         	null
-        
     }
 }
 
@@ -125,8 +124,8 @@ def off() {
 
 def configurationGet() {
     commands([
-    	zwave.configurationV2.configurationGet(parameterNumber: 1),
-	    zwave.configurationV2.configurationGet(parameterNumber: 2),
+    	//zwave.configurationV2.configurationGet(parameterNumber: 1),
+	    //zwave.configurationV2.configurationGet(parameterNumber: 2),
 	    zwave.configurationV2.configurationGet(parameterNumber: 3)
     ])
 }

@@ -1,4 +1,3 @@
-import static java.util.Calendar.SECOND
 metadata {
 	definition(name: "Z-Wave Switch Secure", namespace: "smartthings", author: "SmartThings", ocfDeviceType: "oic.d.switch", runLocally: true, minHubCoreVersion: '000.019.00012', executeCommandsLocally: false, genericHandler: "Z-Wave") {
 		capability "Switch"
@@ -11,8 +10,6 @@ metadata {
         attribute "power", "number"
         attribute "current", "number"
         attribute "voltage", "number"
-        
-        command "configurationGet"
 
         fingerprint mfr: "0000", prod: "0004", model: "0002", deviceJoinName: "Etherdyne Switch"
 	}
@@ -41,7 +38,8 @@ metadata {
 def installed() {
 	// Device-Watch simply pings if no device events received for checkInterval duration of 32min = 2 * 15min + 2min lag time
 	sendEvent(name: "checkInterval", value: 2 * 15 * 60 + 2 * 60, displayed: false, data: [protocol: "zwave", hubHardwareId: device.hub.hardwareID, offlinePingable: "1"])
-    runEvery1Minute(hubConfigurationGet)
+    //runEvery1Minute(hubConfigurationGet)
+    hubConfigurationGet()
 }
 
 def updated() {
@@ -90,6 +88,8 @@ def zwaveEvent(physicalgraph.zwave.commands.securityv1.SecurityMessageEncapsulat
 def zwaveEvent(physicalgraph.zwave.commands.configurationv1.ConfigurationReport cmd) {
 	switch (cmd.parameterNumber) {
     	case 1:
+        	pause(5000)
+            hubConfigurationGet()
         	return createEvent(name: "power", value: cmd.scaledConfigurationValue)
         case 2:
         	return createEvent(name: "current", value: cmd.scaledConfigurationValue)
@@ -99,6 +99,14 @@ def zwaveEvent(physicalgraph.zwave.commands.configurationv1.ConfigurationReport 
         	log.debug "Parameter Number: $cmd.parameterNumber"
         	null
     }
+}
+
+def pause(millis) {
+   def passed = 0
+   def now = new Date().time
+   while ( passed < millis ) {
+       passed = new Date().time - now
+   }
 }
 
 def zwaveEvent(physicalgraph.zwave.Command cmd) {
@@ -118,14 +126,6 @@ def off() {
 		zwave.basicV1.basicSet(value: 0x00),
 		zwave.basicV1.basicGet()
 	])
-}
-
-def configurationGet() {
-    commands([
-    	zwave.configurationV2.configurationGet(parameterNumber: 1),
-	    zwave.configurationV2.configurationGet(parameterNumber: 2),
-	    zwave.configurationV2.configurationGet(parameterNumber: 3)
-    ])
 }
 
 def hubConfigurationGet() {

@@ -10,6 +10,9 @@ metadata {
         attribute "power", "number"
         attribute "current", "number"
         attribute "voltage", "number"
+        
+        command "configurationGet"
+        command "restart"
 
         fingerprint mfr: "0000", prod: "0004", model: "0002", deviceJoinName: "Etherdyne Switch"
 	}
@@ -17,7 +20,7 @@ metadata {
 	tiles(scale: 2) {
     	multiAttributeTile(name:"tile", type:"generic", width:6, height:4) {
         	tileAttribute("device.switch", key: "PRIMARY_CONTROL") {
-				attributeState "on", label:'${name}', action:"switch.off", icon:"st.switches.switch.on", backgroundColor:"#00A0DC"
+				attributeState "on", label:'${name}', action:"configurationGet", icon:"st.switches.switch.on", backgroundColor:"#00A0DC"
 				attributeState "off", label:'${name}', action:"switch.on", icon:"st.switches.switch.off", backgroundColor:"#ffffff"
             }
         }
@@ -30,16 +33,19 @@ metadata {
         valueTile("voltageTile", "device.voltage", width: 2, height: 2) {
         	state "val", label:'Voltage:\n${currentValue} mV', defaultState: true
         }
+        standardTile("restart", "device.restart", width: 2, height: 2) {
+        	state "val", action:"restart", icon:"st.secondary.refresh"
+        }
 		main "tile"
-		details(["tile", "powerTile", "currentTile", "voltageTile"])
+		details(["tile", "powerTile", "currentTile", "voltageTile", "restart"])
 	}
 }
 
 def installed() {
 	// Device-Watch simply pings if no device events received for checkInterval duration of 32min = 2 * 15min + 2min lag time
 	sendEvent(name: "checkInterval", value: 2 * 15 * 60 + 2 * 60, displayed: false, data: [protocol: "zwave", hubHardwareId: device.hub.hardwareID, offlinePingable: "1"])
-    //runEvery1Minute(hubConfigurationGet)
     hubConfigurationGet()
+    state.lastUpdate = new Date().time
 }
 
 def updated() {
@@ -89,6 +95,7 @@ def zwaveEvent(physicalgraph.zwave.commands.configurationv1.ConfigurationReport 
 	switch (cmd.parameterNumber) {
     	case 1:
         	pause(5000)
+            state.lastUpdate = new Date().time
             hubConfigurationGet()
         	return createEvent(name: "power", value: cmd.scaledConfigurationValue)
         case 2:
@@ -128,10 +135,27 @@ def off() {
 	])
 }
 
+def configurationGet() {
+	commands([
+    	zwave.configurationV2.configurationGet(parameterNumber: 1),
+    	zwave.configurationV2.configurationGet(parameterNumber: 2),
+    	zwave.configurationV2.configurationGet(parameterNumber: 3)
+    ])
+}
+
 def hubConfigurationGet() {
 	sendHubCommand(zwave.configurationV2.configurationGet(parameterNumber: 1).format())
 	sendHubCommand(zwave.configurationV2.configurationGet(parameterNumber: 2).format())
 	sendHubCommand(zwave.configurationV2.configurationGet(parameterNumber: 3).format())
+}
+
+def restart() {
+	def diff = new Date().time - state.lastUpdate
+	if (diff > 20 * 1000) {
+        hubConfigurationGet()
+    } else {
+    	log.error "Its only been $diff ms since the last update, please wait 20 sec"
+    }
 }
 
 def ping() {

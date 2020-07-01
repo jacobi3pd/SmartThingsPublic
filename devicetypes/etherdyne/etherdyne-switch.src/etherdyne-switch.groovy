@@ -10,9 +10,11 @@ metadata {
         attribute "power", "number"
         attribute "current", "number"
         attribute "voltage", "number"
+        attribute "pwm", "number"
         
         command "configurationGet"
         command "restart"
+        command "setPWM"
 
         fingerprint mfr: "0000", prod: "0004", model: "0002", deviceJoinName: "Etherdyne Switch"
 	}
@@ -33,11 +35,17 @@ metadata {
         valueTile("voltageTile", "device.voltage", width: 2, height: 2) {
         	state "val", label:'Voltage:\n${currentValue} mV', defaultState: true
         }
+        valueTile("pwmValue", "device.pwm", width: 2, height: 2) {
+        	state "val", label:'PWM: ${currentValue}%'
+        }
+        controlTile("pwm", "device.pwm", "slider", height: 2, width: 2, inactiveLabel: false) {
+    		state "pwm", label:"setpwm", action:"setPWM"
+		}
         standardTile("restart", "device.restart", width: 2, height: 2) {
         	state "val", action:"restart", icon:"st.secondary.refresh"
         }
 		main "tile"
-		details(["tile", "powerTile", "currentTile", "voltageTile", "restart"])
+		details(["tile", "powerTile", "currentTile", "voltageTile", "pwmValue", "pwm", "restart"])
 	}
 }
 
@@ -102,6 +110,8 @@ def zwaveEvent(physicalgraph.zwave.commands.configurationv1.ConfigurationReport 
         	return createEvent(name: "current", value: cmd.scaledConfigurationValue)
         case 3:
         	return createEvent(name: "voltage", value: cmd.scaledConfigurationValue)
+        case 5:
+        	return createEvent(name: "pwm", value: cmd.scaledConfigurationValue/100)
         default:
         	log.debug "Parameter Number: $cmd.parameterNumber"
         	null
@@ -135,11 +145,17 @@ def off() {
 	])
 }
 
+def setPWM(value) {
+    sendEvent(name: "pwm", value: value)
+    command(zwave.configurationV2.configurationSet(parameterNumber: 5, size: 2, scaledConfigurationValue: value*100))
+}
+
 def configurationGet() {
 	commands([
     	zwave.configurationV2.configurationGet(parameterNumber: 1),
     	zwave.configurationV2.configurationGet(parameterNumber: 2),
-    	zwave.configurationV2.configurationGet(parameterNumber: 3)
+    	zwave.configurationV2.configurationGet(parameterNumber: 3),
+    	zwave.configurationV2.configurationGet(parameterNumber: 5)
     ])
 }
 
@@ -147,6 +163,7 @@ def hubConfigurationGet() {
 	sendHubCommand(zwave.configurationV2.configurationGet(parameterNumber: 1).format())
 	sendHubCommand(zwave.configurationV2.configurationGet(parameterNumber: 2).format())
 	sendHubCommand(zwave.configurationV2.configurationGet(parameterNumber: 3).format())
+	sendHubCommand(zwave.configurationV2.configurationGet(parameterNumber: 5).format())
 }
 
 def restart() {
